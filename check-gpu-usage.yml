@@ -4,7 +4,7 @@
   gather_facts: no
   tasks:
     - name: Execute nvidia-smi
-      command: nvidia-smi
+      command: ls
       register: result
       changed_when: false
 
