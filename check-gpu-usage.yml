@@ -1,15 +1,13 @@
-
 ---
-- name: Print gpu usage
+- name: Run nvidia-smi and show output
   hosts: all
   gather_facts: no
-
   tasks:
-    - name: Run nvidia-smi
+    - name: Execute nvidia-smi
       command: nvidia-smi
-      register: host_out
-      ignore_errors: yes
+      register: result
+      changed_when: false
 
-    - name: Display usage
+    - name: Display output
       debug:
-        msg: "{{ inventory_hostname }} -> {{ host_out.stdout | default('NO OUTPUT') }}"
+        msg: "{{ result.stdout_lines }}"
