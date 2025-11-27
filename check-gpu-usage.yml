@@ -1,17 +1,15 @@
+
 ---
-- name: Run nvidia-smi with shell
+- name: Print gpu usage
   hosts: all
   gather_facts: no
-  tasks:
-    - name: Run nvidia-smi via shell to inherit PATH
-      shell: nvidia-smi
-      register: result
-      changed_when: false
-      ignore_errors: yes  # 避免因命令不存在而中断
 
-    - name: Show output or error
+  tasks:
+    - name: Run nvidia-smi
+      command: nvidia-smi
+      register: host_out
+      ignore_errors: yes
+
+    - name: Display usage
       debug:
-        msg: |
-          stdout: {{ result.stdout_lines | default([]) }}
-          stderr: {{ result.stderr | default('') }}
-          rc: {{ result.rc }}
+        msg: "{{ inventory_hostname }} -> {{ host_out.stdout | default('NO OUTPUT') }}"
