@@ -1,13 +1,17 @@
 ---
-- name: Run nvidia-smi and show output
+- name: Run nvidia-smi with shell
   hosts: all
   gather_facts: no
   tasks:
-    - name: Execute nvidia-smi
-      command: nvidia-smi
+    - name: Run nvidia-smi via shell to inherit PATH
+      shell: nvidia-smi
       register: result
       changed_when: false
+      ignore_errors: yes  # 避免因命令不存在而中断
 
-    - name: Display output
+    - name: Show output or error
       debug:
-        msg: "{{ result.stdout_lines }}"
+        msg: |
+          stdout: {{ result.stdout_lines | default([]) }}
+          stderr: {{ result.stderr | default('') }}
+          rc: {{ result.rc }}
