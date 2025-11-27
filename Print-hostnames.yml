@@ -2,11 +2,13 @@
 - name: Print hostnames by running hostname command
   hosts: all
   gather_facts: no
+
   tasks:
-    - name: 运行 hostname 并输出
+    - name: Run hostname
       command: hostname
       register: host_out
+      ignore_errors: yes
 
-    - name: 显示命令输出
+    - name: Display hostname
       debug:
-        msg: "{{ inventory_hostname }} -> {{ host_out.stdout }}"
+        msg: "{{ inventory_hostname }} -> {{ host_out.stdout | default('NO OUTPUT') }}"
