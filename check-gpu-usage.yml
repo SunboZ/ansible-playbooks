@@ -1,13 +1,78 @@
 ---
-- name: Run nvidia-smi and show output
+- name: Check NVIDIA GPU usage
   hosts: all
   gather_facts: no
+
   tasks:
-    - name: Execute nvidia-smi
-      command: nvidia-smi
-      register: result
+    - name: Ensure nvidia-smi is available
+      command: nvidia-smi --version
+      register: smi_check
+      changed_when: false
+      failed_when: smi_check.rc != 0
+
+    - name: Get GPU utilization in structured format
+      command: >
+        nvidia-smi
+        --query-gpu=index,name,temperature.gpu,utilization.gpu,utilization.memory,
+        memory.used,memory.total,power.draw,power.limit
+        --format=csv,noheader,nounits
+      register: gpu_csv
       changed_when: false
 
-    - name: Display output
+    - name: Parse GPU data into list of dictionaries
+      set_fact:
+        gpus: |
+          [
+            {% for line in gpu_csv.stdout_lines %}
+              {
+                "id": {{ line.split(',')[0] | int }},
+                "name": "{{ line.split(',')[1] | trim }}",
+                "temp_c": {{ line.split(',')[2] | int }},
+                "gpu_util_%": {{ line.split(',')[3] | int }},
+                "mem_util_%": {{ line.split(',')[4] | int }},
+                "mem_used_mb": {{ line.split(',')[5] | int }},
+                "mem_total_mb": {{ line.split(',')[6] | int }},
+                "power_draw_w": {{ '%.1f' % (line.split(',')[7] | float) }},
+                "power_limit_w": {{ '%.1f' % (line.split(',')[8] | float) }}
+              }{% if not loop.last %},{% endif %}
+            {% endfor %}
+          ]
+
+    - name: Display GPU usage summary
       debug:
-        msg: "{{ result.stdout_lines }}"
+        msg: |
+          GPU ID: {{ item.id }}
+          Name: {{ item.name }}
+          Temp: {{ item.temp_c }}°C
+          GPU Util: {{ item.gpu_util_% }}%
+          Mem Util: {{ item.mem_util_% }}%
+          Memory: {{ item.mem_used_mb }} / {{ item.mem_total_mb }} MB
+          Power: {{ item.power_draw_w }}W / {{ item.power_limit_w }}W
+      loop: "{{ gpus }}"
+
+    - name: Get running processes on GPU (if any)
+      command: nvidia-smi --query-compute-apps=gpu_index,pid,process_name,used_memory --format=csv,noheader,nounits
+      register: proc_csv
+      changed_when: false
+      ignore_errors: yes
+
+    - name: Parse and show GPU processes
+      set_fact:
+        gpu_processes: |
+          [
+            {% for line in proc_csv.stdout_lines | default([]) %}
+              {
+                "gpu_id": {{ line.split(',')[0] | int }},
+                "pid": {{ line.split(',')[1] | int }},
+                "process": "{{ line.split(',')[2] | trim }}",
+                "mem_mb": {{ line.split(',')[3] | int }}
+              }{% if not loop.last %},{% endif %}
+            {% endfor %}
+          ]
+      when: proc_csv.stdout_lines is defined and proc_csv.stdout_lines | length > 0
+
+    - name: Display GPU processes
+      debug:
+        msg: "GPU {{ item.gpu_id }}: PID {{ item.pid }} ({{ item.process }}) using {{ item.mem_mb }} MB"
+      loop: "{{ gpu_processes }}"
+      when: "'gpu_processes' in vars"
