@@ -1,10 +1,12 @@
 ---
-- name: Print hostnames of all hosts
+- name: Print hostnames by running hostname command
   hosts: all
-  gather_facts: yes   # 使用 facts 中的 ansible_hostname
-  become: false
-
+  gather_facts: no
   tasks:
-    - name: 显示主机名（inventory_hostname -> ansible_hostname）
+    - name: 运行 hostname 并输出
+      command: hostname
+      register: host_out
+
+    - name: 显示命令输出
       debug:
-        msg: "{{ inventory_hostname }} -> {{ ansible_hostname }}"
+        msg: "{{ inventory_hostname }} -> {{ host_out.stdout }}"
