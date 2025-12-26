@@ -1,0 +1,76 @@
+---
+- name: Prepare VS Code Server sysroot for old Linux
+  hosts: all
+  become: yes
+  gather_facts: no
+
+  vars:
+    sysroot_dir: /opt/vscode-sysroot
+    sysroot_user: root
+
+    # glibc / libstdc++ 来源机器
+    source_host: 192.168.1.100
+    source_user: root
+
+    # 需要的库路径（来源机器）
+    glibc_libs:
+      - /lib64/libc.so.6
+      - /lib64/ld-linux-x86-64.so.2
+      - /lib64/libpthread.so.0
+      - /lib64/librt.so.1
+      - /lib64/libdl.so.2
+      - /lib64/libm.so.6
+
+    libstdcpp_libs:
+      - /usr/lib64/libstdc++.so.6
+      - /usr/lib64/libgcc_s.so.1
+
+  tasks:
+    - name: Create sysroot directories
+      file:
+        path: "{{ sysroot_dir }}{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - /lib64
+        - /usr/lib64
+
+    - name: Install required tools
+      package:
+        name:
+          - rsync
+          - patchelf
+        state: present
+
+    - name: Copy glibc libraries from newer system
+      synchronize:
+        src: "{{ item }}"
+        dest: "{{ sysroot_dir }}/lib64/"
+        mode: pull
+        rsync_opts:
+          - "--links"
+      loop: "{{ glibc_libs }}"
+      delegate_to: "{{ source_host }}"
+
+    - name: Copy libstdc++ libraries from newer system
+      synchronize:
+        src: "{{ item }}"
+        dest: "{{ sysroot_dir }}/usr/lib64/"
+        mode: pull
+        rsync_opts:
+          - "--links"
+      loop: "{{ libstdcpp_libs }}"
+      delegate_to: "{{ source_host }}"
+
+    - name: Set permissions for sysroot
+      file:
+        path: "{{ sysroot_dir }}"
+        owner: "{{ sysroot_user }}"
+        group: "{{ sysroot_user }}"
+        recurse: yes
+
+    - name: Display sysroot info
+      debug:
+        msg:
+          - "VS Code sysroot prepared at {{ sysroot_dir }}"
+          - "glibc & libstdc++ copied successfully"
