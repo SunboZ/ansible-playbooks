@@ -1,0 +1,46 @@
+---
+- name: Check node_exporter status
+  hosts: all
+  become: yes
+  gather_facts: no
+
+  vars:
+    node_exporter_port: 9100
+
+  tasks:
+    - name: Check node_exporter process
+      shell: pgrep -f node_exporter
+      register: node_exporter_process
+      ignore_errors: yes
+
+    - name: Fail if node_exporter process not running
+      fail:
+        msg: "node_exporter process is NOT running"
+      when: node_exporter_process.rc != 0
+
+    - name: Check node_exporter port listening
+      shell: ss -lntp | grep ":{{ node_exporter_port }}"
+      register: node_exporter_port_check
+      ignore_errors: yes
+
+    - name: Fail if node_exporter port not listening
+      fail:
+        msg: "node_exporter port {{ node_exporter_port }} is NOT listening"
+      when: node_exporter_port_check.rc != 0
+
+    - name: Check node_exporter /metrics endpoint
+      uri:
+        url: "http://127.0.0.1:{{ node_exporter_port }}/metrics"
+        method: GET
+        status_code: 200
+      register: node_exporter_http
+      ignore_errors: yes
+
+    - name: Fail if node_exporter /metrics not accessible
+      fail:
+        msg: "node_exporter /metrics endpoint is NOT accessible"
+      when: node_exporter_http.status != 200
+
+    - name: node_exporter is running normally
+      debug:
+        msg: "node_exporter is running and healthy 🎉"
